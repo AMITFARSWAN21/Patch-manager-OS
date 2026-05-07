@@ -1,0 +1,15 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+
+# Terraform lock file
+.terraform.lock.hcl
+
+# Private keys
+*.pem
+
+# Logs
+crash.log
