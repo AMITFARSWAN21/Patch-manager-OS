@@ -1,4 +1,4 @@
-
+# Data source to find existing EC2 instances with Production environment tag
 data "aws_instances" "production_instances" {
   filter {
     name   = "tag:Environment"
@@ -11,21 +11,40 @@ data "aws_instances" "production_instances" {
   }
 }
 
-# Data source to get detailed information about each instance
+# Get detailed information for each instance
 data "aws_instance" "production_details" {
   count       = length(data.aws_instances.production_instances.ids)
   instance_id = data.aws_instances.production_instances.ids[count.index]
 }
 
-# Add PatchGroup tag to existing instances
+# Local values to process instance information
+locals {
+  instance_info = [
+    for instance in data.aws_instance.production_details : {
+      id          = instance.id
+      name        = lookup(instance.tags, "Name", "Unnamed")
+      private_ip  = instance.private_ip
+      public_ip   = instance.public_ip
+      az          = instance.availability_zone
+      os          = lookup(instance.tags, "OS", "unknown")
+      patch_group = "${lookup(instance.tags, "OS", "unknown")}-Production-PatchGroup"
+    }
+  ]
+}
+
+# Add PatchGroup tag to instances based on their OS tag
 resource "aws_ec2_tag" "patch_group_tag" {
   count       = length(data.aws_instances.production_instances.ids)
   resource_id = data.aws_instances.production_instances.ids[count.index]
   key         = "PatchGroup"
-  value       = var.patch_group_name
+  value = "${lookup(
+    data.aws_instance.production_details[count.index].tags,
+    "OS",
+    "unknown"
+  )}-Production-PatchGroup"
 }
 
-# Add AutoPatch tag to existing instances
+# Add AutoPatch tag to enable automatic patching
 resource "aws_ec2_tag" "auto_patch_tag" {
   count       = length(data.aws_instances.production_instances.ids)
   resource_id = data.aws_instances.production_instances.ids[count.index]
@@ -33,15 +52,15 @@ resource "aws_ec2_tag" "auto_patch_tag" {
   value       = "true"
 }
 
-# Output existing instance information
-locals {
-  instance_info = [
-    for i, instance in data.aws_instance.production_details : {
-      id         = instance.id
-      name       = lookup(instance.tags, "Name", "Unnamed")
-      private_ip = instance.private_ip
-      public_ip  = instance.public_ip
-      az         = instance.availability_zone
+# Output instance information for verification
+output "managed_instances" {
+  description = "Information about managed instances"
+  value = {
+    for i, instance in local.instance_info : instance.id => {
+      name        = instance.name
+      os          = instance.os
+      patch_group = instance.patch_group
+      private_ip  = instance.private_ip
     }
-  ]
+  }
 }
