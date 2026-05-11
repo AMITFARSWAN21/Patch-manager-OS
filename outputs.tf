@@ -1,97 +1,88 @@
-# output "patch_management_summary" {
-#   description = "Complete patch management setup summary"
+# Output instance information for verification
+output "managed_instances" {
+  description = "Information about managed instances"
+  value = {
+    for instance in local.valid_instances : instance.id => {
+      name         = instance.name
+      detected_os  = instance.detected_os
+      ami_name     = instance.ami_name
+      patch_group  = "${instance.detected_os}-Production-PatchGroup"
+      private_ip   = instance.private_ip
+      environment  = instance.environment
+      project      = instance.project
+    }
+  }
+}
 
-#   value = {
-#     for os_key, config in var.os_patch_configs : os_key => {
+# Output instances that couldn't be classified
+output "unclassified_instances" {
+  description = "Instances that couldn't be classified by OS"
+  value = {
+    for instance in local.instance_info : instance.id => {
+      name        = instance.name
+      ami_name    = instance.ami_name
+      detected_os = instance.detected_os
+      environment = instance.environment
+    }
+    if instance.detected_os == "unknown" || !contains(keys(var.os_patch_configs), instance.detected_os)
+  }
+}
 
-#       baseline_id   = aws_ssm_patch_baseline.os_baselines[os_key].id
+# Output OS detection summary
+output "os_detection_summary" {
+  description = "Summary of OS detection results"
+  value = {
+    total_instances     = length(local.instance_info)
+    valid_instances     = length(local.valid_instances)
+    ubuntu_count       = length([for i in local.valid_instances : i if i.detected_os == "ubuntu"])
+    windows_count      = length([for i in local.valid_instances : i if i.detected_os == "windows"])
+    amazonlinux_count  = length([for i in local.valid_instances : i if i.detected_os == "amazonlinux"])
+    rhel_count         = length([for i in local.valid_instances : i if i.detected_os == "rhel"])
+    centos_count       = length([for i in local.valid_instances : i if i.detected_os == "centos"])
+    unknown_count      = length([for i in local.instance_info : i if i.detected_os == "unknown"])
+  }
+}
 
-#       baseline_name = aws_ssm_patch_baseline.os_baselines[os_key].name
+# Output patch baseline information
+output "patch_baselines" {
+  description = "Created patch baselines"
+  value = {
+    for k, v in aws_ssm_patch_baseline.os_baselines : k => {
+      id   = v.id
+      name = v.name
+      os   = v.operating_system
+    }
+  }
+}
 
-#       patch_group = "${os_key}-Production-PatchGroup"
+# Output maintenance window information
+output "maintenance_windows" {
+  description = "Created maintenance windows"
+  value = {
+    for k, v in aws_ssm_maintenance_window.os_maintenance_windows : k => {
+      id       = v.id
+      name     = v.name
+      schedule = v.schedule
+    }
+  }
+}
 
-#       maintenance_window =aws_ssm_maintenance_window.os_maintenance_windows[os_key].id
+# Output patch groups
+output "patch_groups" {
+  description = "Created patch groups"
+  value = {
+    for k, v in aws_ssm_patch_group.os_patch_groups : k => {
+      baseline_id = v.baseline_id
+      patch_group = v.patch_group
+    }
+  }
+}
 
-#       schedule         = config.schedule
-#       scan_schedule    = config.scan_schedule
-#       operating_system = config.operating_system
-#     }
-#   }
-# }
-
-# output "instances_by_os" {
-#   description = "Instances grouped by OS"
-
-#   value = {
-
-#     total_instances = length(local.instance_info)
-
-#     instances_detail = local.instance_info
-
-#     by_os = {
-
-#       ubuntu_instances = [
-#         for instance in local.instance_info : instance
-#         if instance.os == "ubuntu"
-#       ]
-
-#       amazonlinux_instances = [
-#         for instance in local.instance_info : instance
-#         if instance.os == "amazonlinux"
-#       ]
-
-#       windows_instances = [
-#         for instance in local.instance_info : instance
-#         if instance.os == "windows"
-#       ]
-#     }
-#   }
-# }
-
-# output "verification_commands" {
-#   description = "Commands to verify patch management"
-
-#   value = <<-EOT
-
-# # Ubuntu patch scan
-# aws ssm send-command --document-name "AWS-RunPatchBaseline" --parameters "Operation=Scan" --targets "Key=tag:OS,Values=ubuntu" --region ${var.aws_region}
-
-# # Ubuntu patch install
-# aws ssm send-command --document-name "AWS-RunPatchBaseline" --parameters "Operation=Install" --targets "Key=tag:OS,Values=ubuntu" --region ${var.aws_region}
-
-# # Amazon Linux patch scan
-# aws ssm send-command --document-name "AWS-RunPatchBaseline" --parameters "Operation=Scan" --targets "Key=tag:OS,Values=amazonlinux" --region ${var.aws_region}
-
-# # Amazon Linux patch install
-# aws ssm send-command --document-name "AWS-RunPatchBaseline" --parameters "Operation=Install" --targets "Key=tag:OS,Values=amazonlinux" --region ${var.aws_region}
-
-# # Windows patch scan
-# aws ssm send-command --document-name "AWS-RunPatchBaseline" --parameters "Operation=Scan" --targets "Key=tag:OS,Values=windows" --region ${var.aws_region}
-
-# # Windows patch install
-# aws ssm send-command --document-name "AWS-RunPatchBaseline" --parameters "Operation=Install" --targets "Key=tag:OS,Values=windows" --region ${var.aws_region}
-
-# # Check compliance
-# aws ssm describe-instance-patch-states --region ${var.aws_region}
-
-# EOT
-# }
-
-# output "console_links" {
-#   description = "AWS Console links"
-
-#   value = {
-
-#     patch_manager =
-#     "https://${var.aws_region}.console.aws.amazon.com/systems-manager/patch-manager/dashboard"
-
-#     fleet_manager =
-#     "https://${var.aws_region}.console.aws.amazon.com/systems-manager/managed-instances"
-
-#     maintenance_windows =
-#     "https://${var.aws_region}.console.aws.amazon.com/systems-manager/maintenance-windows"
-
-#     inspector_findings =
-#     "https://${var.aws_region}.console.aws.amazon.com/inspector/v2/home#/findings"
-#   }
-# }
+# Output IAM role information
+output "iam_role" {
+  description = "IAM role for maintenance windows"
+  value = {
+    name = aws_iam_role.maintenance_window_role.name
+    arn  = aws_iam_role.maintenance_window_role.arn
+  }
+}

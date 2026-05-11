@@ -1,4 +1,4 @@
-# Patch baselines for ALL OS types (no instance filtering)
+# Patch baselines for ALL OS types
 resource "aws_ssm_patch_baseline" "os_baselines" {
   for_each = var.os_patch_configs
 
@@ -11,7 +11,7 @@ resource "aws_ssm_patch_baseline" "os_baselines" {
   approved_patches_compliance_level    = each.key == "ubuntu" ? "HIGH" : "UNSPECIFIED"
   approved_patches_enable_non_security = each.key == "ubuntu" ? true : false
 
-  # Windows/Amazon Linux: Use approval_rule ONLY
+  # Other OS types: Use approval_rule ONLY
   dynamic "approval_rule" {
     for_each = each.key != "ubuntu" ? [1] : []
 
@@ -30,11 +30,11 @@ resource "aws_ssm_patch_baseline" "os_baselines" {
     }
   }
 
-  tags = {
+  tags = merge(var.additional_tags, {
     Name        = "${each.key}-Production-Baseline"
     Environment = var.target_environment
     OS          = each.key
-  }
+  })
 }
 
 # Patch groups for ALL OS types
@@ -56,11 +56,11 @@ resource "aws_ssm_maintenance_window" "os_maintenance_windows" {
   cutoff                     = 1
   allow_unassociated_targets = false
 
-  tags = {
+  tags = merge(var.additional_tags, {
     Name        = "${each.key}-Production-MaintenanceWindow"
     Environment = var.target_environment
     OS          = each.key
-  }
+  })
 }
 
 # Maintenance window targets for ALL OS types
@@ -74,7 +74,7 @@ resource "aws_ssm_maintenance_window_target" "os_targets" {
 
   targets {
     key    = "tag:Environment"
-    values = [var.target_environment]
+    values = var.environment_patterns
   }
 
   targets {
@@ -125,16 +125,16 @@ resource "aws_ssm_maintenance_window_task" "os_patch_tasks" {
   }
 }
 
-# Associations for daily patch scans for ALL OS types
+# Optional: Associations for patch scans (commented out by default)
 # resource "aws_ssm_association" "os_patch_scans" {
 #   for_each = var.os_patch_configs
 
 #   name                = "AWS-RunPatchBaseline"
-#   # schedule_expression = each.value.scan_schedule
+#   schedule_expression = "cron(0 */6 * * ? *)"  # Every 6 hours
 
 #   targets {
 #     key    = "tag:Environment"
-#     values = [var.target_environment]
+#     values = var.environment_patterns
 #   }
 
 #   targets {
@@ -152,79 +152,4 @@ resource "aws_ssm_maintenance_window_task" "os_patch_tasks" {
 #   }
 
 #   compliance_severity = "HIGH"
-# }
-
-# Data source to check existing instances (for informational purposes only)
-data "aws_instances" "os_instances" {
-  for_each = var.os_patch_configs
-
-  filter {
-    name   = "tag:Environment"
-    values = [var.target_environment]
-  }
-
-  filter {
-    name   = "tag:OS"
-    values = [each.key]
-  }
-
-  filter {
-    name   = "instance-state-name"
-    values = ["running"]
-  }
-}
-
-# Output to show instance discovery results (informational only)
-output "instance_discovery" {
-  description = "Instance discovery results by OS type"
-  value = {
-    for k, v in data.aws_instances.os_instances : k => {
-      instance_count     = length(v.ids)
-      instance_ids       = v.ids
-      baseline_exists    = contains(keys(aws_ssm_patch_baseline.os_baselines), k)
-      maintenance_window_exists = contains(keys(aws_ssm_maintenance_window.os_maintenance_windows), k)
-    }
-  }
-}
-
-# Output patch baseline information for ALL OS types
-output "patch_baselines" {
-  description = "Created patch baselines"
-  value = {
-    for k, v in aws_ssm_patch_baseline.os_baselines : k => {
-      id   = v.id
-      name = v.name
-      os   = v.operating_system
-    }
-  }
-}
-
-# Output maintenance window information for ALL OS types
-output "maintenance_windows" {
-  description = "Created maintenance windows"
-  value = {
-    for k, v in aws_ssm_maintenance_window.os_maintenance_windows : k => {
-      id       = v.id
-      name     = v.name
-      schedule = v.schedule
-    }
-  }
-}
-
-# Output patch groups for ALL OS types
-output "patch_groups" {
-  description = "Created patch groups"
-  value = {
-    for k, v in aws_ssm_patch_group.os_patch_groups : k => {
-      baseline_id = v.baseline_id
-      patch_group = v.patch_group
-    }
-  }
-}
-
-# Random string for unique naming (if not already defined)
-# resource "random_string" "suffix" {
-#   length  = 8
-#   special = false
-#   upper   = false
 # }
