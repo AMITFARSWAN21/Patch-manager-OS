@@ -126,7 +126,7 @@ variable "os_patch_configs" {
       }
       compliance_level     = "HIGH"
       approval_delay       = 0
-      schedule             = "rate(10 minutes)" # Fixed syntax error
+      schedule             = "rate(30 minutes)" # Fixed syntax error
       duration             = 1
       max_concurrency      = "100%"
       max_errors           = "5%"
