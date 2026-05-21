@@ -11,7 +11,7 @@ variable "target_environment" {
 }
 
 variable "environment_patterns" {
-  description = "Environment tag patterns to match (for existing instances with different naming)"
+  description = "Environment tag patterns to match"
   type        = list(string)
   default     = ["Production", "prod", "PROD", "production"]
 }
@@ -31,7 +31,7 @@ variable "os_patch_configs" {
     enable_non_security  = bool
     use_approved_patches = bool
     approved_patches     = list(string)
-    patch_sources        = list(object({
+    patch_sources = list(object({
       name          = string
       products      = list(string)
       configuration = string
@@ -39,79 +39,67 @@ variable "os_patch_configs" {
   }))
 
   default = {
-   ubuntu = {
-  operating_system = "UBUNTU"
-  patch_filters = {
-    "PRIORITY" = [
-      "Required",
-      "Important",
-      "Standard",
-      "Optional",
-      "Extra"
-    ]
-    "SECTION" = ["*"]
-  }
-  compliance_level     = "HIGH"
-  approval_delay       = 0
-  schedule             = "cron(0 0/30 * 1/1 * ? *)" # Every 30 minutes
-  duration             = 2
-  max_concurrency      = "100%"
-  max_errors           = "0%"
-  enable_non_security  = true
-  use_approved_patches = true
-  approved_patches     = ["*"]
-  
-  # BOTH Ubuntu 22.04 AND 24.04 repositories
-  patch_sources = [
-    # Ubuntu 22.04 (Jammy) repositories
-    {
-      name          = "ubuntu22-security"
-      products      = ["Ubuntu22.04"]
-      configuration = "deb http://security.ubuntu.com/ubuntu jammy-security main restricted universe multiverse"
-    },
-    {
-      name          = "ubuntu22-updates"
-      products      = ["Ubuntu22.04"]
-      configuration = "deb http://archive.ubuntu.com/ubuntu jammy-updates main restricted universe multiverse"
-    },
-    {
-      name          = "ubuntu22-main"
-      products      = ["Ubuntu22.04"]
-      configuration = "deb http://archive.ubuntu.com/ubuntu jammy main restricted universe multiverse"
-    },
-    
-    
-    # Ubuntu 24.04 (Noble) repositories
-    {
-      name          = "ubuntu24-security"
-      products      = ["Ubuntu24.04"]
-      configuration = "deb http://security.ubuntu.com/ubuntu noble-security main restricted universe multiverse"
-    },
-    {
-      name          = "ubuntu24-updates"
-      products      = ["Ubuntu24.04"]
-      configuration = "deb http://archive.ubuntu.com/ubuntu noble-updates main restricted universe multiverse"
-    },
-    {
-      name          = "ubuntu24-main"
-      products      = ["Ubuntu24.04"]
-      configuration = "deb http://archive.ubuntu.com/ubuntu noble main restricted universe multiverse"
+    ubuntu = {
+      operating_system = "UBUNTU"
+      patch_filters = {
+        "PRIORITY" = ["Required", "Important", "Standard", "Optional", "Extra"]
+        "SECTION"  = ["*"]
+      }
+      compliance_level     = "HIGH"
+      approval_delay       = 0
+      schedule             = "cron(0 0/30 * 1/1 * ? *)"
+      duration             = 2
+      max_concurrency      = "100%"
+      max_errors           = "0%"
+      enable_non_security  = true
+      use_approved_patches = true
+      approved_patches     = ["*"]
+      patch_sources = [
+        {
+          name          = "ubuntu22-security"
+          products      = ["Ubuntu22.04"]
+          configuration = "deb http://security.ubuntu.com/ubuntu jammy-security main restricted universe multiverse"
+        },
+        {
+          name          = "ubuntu22-updates"
+          products      = ["Ubuntu22.04"]
+          configuration = "deb http://archive.ubuntu.com/ubuntu jammy-updates main restricted universe multiverse"
+        },
+        {
+          name          = "ubuntu22-main"
+          products      = ["Ubuntu22.04"]
+          configuration = "deb http://archive.ubuntu.com/ubuntu jammy main restricted universe multiverse"
+        },
+        {
+          name          = "ubuntu24-security"
+          products      = ["Ubuntu24.04"]
+          configuration = "deb http://security.ubuntu.com/ubuntu noble-security main restricted universe multiverse"
+        },
+        {
+          name          = "ubuntu24-updates"
+          products      = ["Ubuntu24.04"]
+          configuration = "deb http://archive.ubuntu.com/ubuntu noble-updates main restricted universe multiverse"
+        },
+        {
+          name          = "ubuntu24-main"
+          products      = ["Ubuntu24.04"]
+          configuration = "deb http://archive.ubuntu.com/ubuntu noble main restricted universe multiverse"
+        }
+      ]
     }
-  ]
-}
 
     windows = {
       operating_system = "WINDOWS"
       patch_filters = {
-        "CLASSIFICATION" = ["CriticalUpdates", "SecurityUpdates", "Updates", "UpdateRollups"]
-        "MSRC_SEVERITY"  = ["Critical", "Important", "Moderate", "Low"]
+        "CLASSIFICATION" = ["CriticalUpdates", "SecurityUpdates", "Updates"]
+        "MSRC_SEVERITY"  = ["Critical", "Important", "Moderate"]
       }
       compliance_level     = "CRITICAL"
       approval_delay       = 0
-      schedule             = "rate(10 minutes)"
-      duration             = 1
-      max_concurrency      = "100%"
-      max_errors           = "15%"
+      schedule             = "cron(0 0/30 * 1/1 * ? *)"
+      duration             = 4
+      max_concurrency      = "50%"
+      max_errors           = "10%"
       enable_non_security  = false
       use_approved_patches = false
       approved_patches     = []
@@ -126,100 +114,10 @@ variable "os_patch_configs" {
       }
       compliance_level     = "HIGH"
       approval_delay       = 0
-      schedule             = "rate(30 minutes)" # Fixed syntax error
-      duration             = 1
+      schedule             = "cron(0 0/30 * 1/1 * ? *)"
+      duration             = 2
       max_concurrency      = "100%"
-      max_errors           = "5%"
-      enable_non_security  = true
-      use_approved_patches = false
-      approved_patches     = []
-      patch_sources        = []
-    }
-
-    rhel = {
-      operating_system = "REDHAT_ENTERPRISE_LINUX"
-      patch_filters = {
-        "CLASSIFICATION" = ["Security", "Bugfix", "Enhancement"]
-        "SEVERITY"       = ["Critical", "Important", "Medium"]
-      }
-      compliance_level     = "HIGH"
-      approval_delay       = 0
-      schedule             = "rate(30 minutes)"
-      duration             = 1
-      max_concurrency      = "50%"
-      max_errors           = "10%"
-      enable_non_security  = true
-      use_approved_patches = false
-      approved_patches     = []
-      patch_sources        = []
-    }
-
-    centos = {
-      operating_system = "CENTOS"
-      patch_filters = {
-        "CLASSIFICATION" = ["Security", "Bugfix", "Enhancement"]
-        "SEVERITY"       = ["Critical", "Important", "Medium"]
-      }
-      compliance_level     = "HIGH"
-      approval_delay       = 0
-      schedule             = "rate(30 minutes)"
-      duration             = 1
-      max_concurrency      = "50%"
-      max_errors           = "10%"
-      enable_non_security  = true
-      use_approved_patches = false
-      approved_patches     = []
-      patch_sources        = []
-    }
-
-    debian = {
-      operating_system = "DEBIAN"
-      patch_filters = {
-        "PRIORITY" = ["Required", "Important", "Standard", "Optional"]
-        "SECTION"  = ["*"]
-      }
-      compliance_level     = "HIGH"
-      approval_delay       = 0
-      schedule             = "rate(30 minutes)"
-      duration             = 1
-      max_concurrency      = "50%"
-      max_errors           = "10%"
-      enable_non_security  = true
-      use_approved_patches = false
-      approved_patches     = []
-      patch_sources        = []
-    }
-
-    suse = {
-      operating_system = "SUSE"
-      patch_filters = {
-        "CLASSIFICATION" = ["Security", "Recommended", "Optional"]
-        "SEVERITY"       = ["Critical", "Important", "Moderate"]
-      }
-      compliance_level     = "HIGH"
-      approval_delay       = 0
-      schedule             = "rate(30 minutes)"
-      duration             = 1
-      max_concurrency      = "50%"
-      max_errors           = "10%"
-      enable_non_security  = true
-      use_approved_patches = false
-      approved_patches     = []
-      patch_sources        = []
-    }
-
-    oracle = {
-      operating_system = "ORACLE_LINUX"
-      patch_filters = {
-        "CLASSIFICATION" = ["Security", "Bugfix", "Enhancement"]
-        "SEVERITY"       = ["Critical", "Important", "Medium"]
-      }
-      compliance_level     = "HIGH"
-      approval_delay       = 0
-      schedule             = "rate(30 minutes)"
-      duration             = 1
-      max_concurrency      = "50%"
-      max_errors           = "10%"
+      max_errors           = "0%"
       enable_non_security  = true
       use_approved_patches = false
       approved_patches     = []
@@ -241,4 +139,28 @@ variable "additional_tags" {
     ManagedBy = "Terraform"
     Purpose   = "PatchManagement"
   }
+}
+
+variable "vpc_cidr" {
+  description = "CIDR block for the VPC"
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+variable "private_subnet_cidr" {
+  description = "CIDR block for the private subnet"
+  type        = string
+  default     = "10.0.1.0/24"
+}
+
+variable "availability_zone" {
+  description = "Availability zone for subnets"
+  type        = string
+  default     = "ap-south-1a"
+}
+
+variable "public_subnet_cidr" {
+  description = "CIDR for public subnet where WSUS server lives"
+  type        = string
+  default     = "10.0.2.0/24"
 }

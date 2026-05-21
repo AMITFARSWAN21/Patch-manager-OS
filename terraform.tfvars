@@ -111,71 +111,6 @@ os_patch_configs = {
     approved_patches = []
     patch_sources    = []
   }
-
-  rhel = {
-    operating_system = "REDHAT_ENTERPRISE_LINUX"
-    patch_filters = {
-      "CLASSIFICATION" = ["Security", "Bugfix", "Enhancement"]
-      "SEVERITY" = [
-        "Critical",
-        "Important",
-        "Moderate" # ⭐ RHEL uses "Moderate"
-      ]
-    }
-    compliance_level     = "HIGH"
-    approval_delay       = 0
-    schedule             = "cron(0 0/30 * 1/1 * ? *)" # Every 30 minutes
-    duration             = 2
-    max_concurrency      = "100%"
-    max_errors           = "0%"
-    enable_non_security  = true
-    use_approved_patches = false
-    # ADDED: Required fields for consistency
-    approved_patches = []
-    patch_sources    = []
-  }
-
-  centos = {
-    operating_system = "CENTOS"
-    patch_filters = {
-      "CLASSIFICATION" = ["Security", "Bugfix", "Enhancement"]
-      "SEVERITY" = [
-        "Critical",
-        "Important",
-        "Moderate" # ⭐ CentOS uses "Moderate"
-      ]
-    }
-    compliance_level     = "HIGH"
-    approval_delay       = 0
-    schedule             = "cron(0 0/30 * 1/1 * ? *)" # Every 30 minutes
-    duration             = 2
-    max_concurrency      = "100%"
-    max_errors           = "0%"
-    enable_non_security  = true
-    use_approved_patches = false
-    # ADDED: Required fields for consistency
-    approved_patches = []
-    patch_sources    = []
-  }
-
-  debian = {
-    operating_system = "DEBIAN"
-    patch_filters = {
-      "PRIORITY" = ["Required", "Important", "Standard", "Optional"]
-      "SECTION"  = ["*"]
-    }
-    compliance_level     = "HIGH"
-    approval_delay       = 0
-    schedule             = "cron(0 0/30 * 1/1 * ? *)" # Every 30 minutes
-    duration             = 2
-    max_concurrency      = "100%"
-    max_errors           = "0%"
-    enable_non_security  = true
-    use_approved_patches = false
-    # ADDED: Required fields for consistency
-    approved_patches = []
-    patch_sources    = []
-  }
 }
 
 environment_patterns = ["Production", "prod", "PROD", "production"]
@@ -185,3 +120,9 @@ additional_tags = {
   Purpose   = "PatchManagement"
   Owner     = "DevOps"
 }
+
+
+vpc_cidr            = "10.0.0.0/16"
+private_subnet_cidr = "10.0.1.0/24"
+availability_zone   = "ap-south-1a"
+public_subnet_cidr = "10.0.2.0/24"
