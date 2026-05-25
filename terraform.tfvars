@@ -25,43 +25,8 @@ os_patch_configs = {
     # ADDED: Explicit patch approval for Ubuntu - includes your CVEs
     approved_patches = ["*"]
     # ADDED: Custom patch sources for Ubuntu
-    patch_sources = [
-
-      {
-      name          = "ubuntu22-security"
-      products      = ["Ubuntu22.04"]
-      configuration = "deb http://security.ubuntu.com/ubuntu jammy-security main restricted universe multiverse"
-    },
-    {
-      name          = "ubuntu22-updates"
-      products      = ["Ubuntu22.04"]
-      configuration = "deb http://archive.ubuntu.com/ubuntu jammy-updates main restricted universe multiverse"
-    },
-    {
-      name          = "ubuntu22-main"
-      products      = ["Ubuntu22.04"]
-      configuration = "deb http://archive.ubuntu.com/ubuntu jammy main restricted universe multiverse"
-    },
-    
-    
-      {
-        name          = "ubuntu-security"
-        products      = ["Ubuntu24.04"]
-        configuration = "deb http://security.ubuntu.com/ubuntu noble-security main restricted universe multiverse"
-      },
-      {
-        name          = "ubuntu-updates"
-        products      = ["Ubuntu24.04"]
-        configuration = "deb http://archive.ubuntu.com/ubuntu noble-updates main restricted universe multiverse"
-      },
-      {
-        name          = "ubuntu-main"
-        products      = ["Ubuntu24.04"]
-        configuration = "deb http://archive.ubuntu.com/ubuntu noble main restricted universe multiverse"
-      }
-    ]
+    patch_sources        = []  
   }
-
   windows = {
     operating_system = "WINDOWS"
     patch_filters = {
@@ -96,7 +61,7 @@ os_patch_configs = {
       "SEVERITY" = [
         "Critical",
         "Important",
-        "Medium" # ⭐ Amazon Linux uses "Medium" not "Moderate"
+        "Medium" 
       ]
     }
     compliance_level     = "HIGH"

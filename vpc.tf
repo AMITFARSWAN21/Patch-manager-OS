@@ -17,7 +17,6 @@ resource "aws_vpc" "main" {
 # SUBNETS
 # ============================================================
 
-# Private subnet — Windows and Linux EC2 instances (no internet)
 resource "aws_subnet" "private" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.private_subnet_cidr
@@ -30,7 +29,7 @@ resource "aws_subnet" "private" {
   }
 }
 
-# Public subnet — WSUS server only (has internet via IGW)
+# ← ADD THIS - was missing
 resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.public_subnet_cidr
@@ -60,8 +59,6 @@ resource "aws_internet_gateway" "main" {
 # ROUTE TABLES
 # ============================================================
 
-# Private route table — no internet route
-# Windows and Linux instances use VPC endpoints only
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.main.id
 
@@ -76,8 +73,6 @@ resource "aws_route_table_association" "private" {
   route_table_id = aws_route_table.private.id
 }
 
-# Public route table — has internet route via IGW
-# WSUS server uses this to reach Microsoft Windows Update
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
@@ -99,12 +94,6 @@ resource "aws_route_table_association" "public" {
 
 # ============================================================
 # SECURITY GROUP FOR VPC ENDPOINTS
-# Allows HTTPS from both subnets:
-# — private subnet: Windows and Linux instances
-# — public subnet: WSUS server SSM agent
-# private_dns_enabled = true makes DNS resolution VPC-wide
-# so WSUS in public subnet also resolves to endpoint private IP
-# and can connect as long as this SG allows it
 # ============================================================
 
 resource "aws_security_group" "vpc_endpoints_sg" {
@@ -113,7 +102,7 @@ resource "aws_security_group" "vpc_endpoints_sg" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description = "HTTPS from private subnet - Windows and Linux instances"
+    description = "HTTPS from private subnet"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
@@ -121,7 +110,7 @@ resource "aws_security_group" "vpc_endpoints_sg" {
   }
 
   ingress {
-    description = "HTTPS from public subnet - WSUS server SSM agent"
+    description = "HTTPS from public subnet"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
@@ -143,11 +132,6 @@ resource "aws_security_group" "vpc_endpoints_sg" {
 
 # ============================================================
 # VPC INTERFACE ENDPOINTS
-# All deployed in private subnet only — same AZ restriction
-# prevents deploying in both subnets when they are in same AZ
-# private_dns_enabled = true creates VPC-wide DNS override
-# so ALL instances including WSUS in public subnet resolve
-# endpoint hostnames to private IPs and connect through here
 # ============================================================
 
 resource "aws_vpc_endpoint" "ssm" {
@@ -206,8 +190,6 @@ resource "aws_vpc_endpoint" "ec2" {
   }
 }
 
-# S3 Gateway endpoint — free, required by AWS before S3 interface
-# endpoint can use private_dns_enabled = true
 resource "aws_vpc_endpoint" "s3_gateway" {
   vpc_id            = aws_vpc.main.id
   service_name      = "com.amazonaws.${var.aws_region}.s3"
@@ -220,9 +202,6 @@ resource "aws_vpc_endpoint" "s3_gateway" {
   }
 }
 
-# S3 Interface endpoint — handles private DNS resolution
-# SSM patch module downloads use this
-# Requires gateway endpoint to exist first — AWS requirement
 resource "aws_vpc_endpoint" "s3_interface" {
   vpc_id              = aws_vpc.main.id
   service_name        = "com.amazonaws.${var.aws_region}.s3"
@@ -254,6 +233,35 @@ resource "aws_vpc_endpoint" "inspector2" {
 }
 
 # ============================================================
+# NAT GATEWAY — Windows instances patch via Microsoft Update
+# No WSUS server needed
+# ============================================================
+
+resource "aws_eip" "nat" {
+  domain = "vpc"
+  tags = {
+    Name        = "nat-gateway-eip"
+    Environment = "Production"
+  }
+}
+
+resource "aws_nat_gateway" "main" {
+  allocation_id = aws_eip.nat.id
+  subnet_id     = aws_subnet.public.id
+  tags = {
+    Name        = "main-nat-gateway"
+    Environment = "Production"
+  }
+  depends_on = [aws_internet_gateway.main]
+}
+
+resource "aws_route" "private_nat" {
+  route_table_id         = aws_route_table.private.id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         = aws_nat_gateway.main.id
+}
+
+# ============================================================
 # OUTPUTS
 # ============================================================
 
@@ -267,4 +275,9 @@ output "private_subnet_id" {
 
 output "public_subnet_id" {
   value = aws_subnet.public.id
+}
+
+output "nat_gateway_ip" {
+  description = "NAT Gateway public IP - Windows Update traffic goes through here"
+  value       = aws_eip.nat.public_ip
 }

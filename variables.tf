@@ -54,38 +54,7 @@ variable "os_patch_configs" {
       enable_non_security  = true
       use_approved_patches = true
       approved_patches     = ["*"]
-      patch_sources = [
-        {
-          name          = "ubuntu22-security"
-          products      = ["Ubuntu22.04"]
-          configuration = "deb http://security.ubuntu.com/ubuntu jammy-security main restricted universe multiverse"
-        },
-        {
-          name          = "ubuntu22-updates"
-          products      = ["Ubuntu22.04"]
-          configuration = "deb http://archive.ubuntu.com/ubuntu jammy-updates main restricted universe multiverse"
-        },
-        {
-          name          = "ubuntu22-main"
-          products      = ["Ubuntu22.04"]
-          configuration = "deb http://archive.ubuntu.com/ubuntu jammy main restricted universe multiverse"
-        },
-        {
-          name          = "ubuntu24-security"
-          products      = ["Ubuntu24.04"]
-          configuration = "deb http://security.ubuntu.com/ubuntu noble-security main restricted universe multiverse"
-        },
-        {
-          name          = "ubuntu24-updates"
-          products      = ["Ubuntu24.04"]
-          configuration = "deb http://archive.ubuntu.com/ubuntu noble-updates main restricted universe multiverse"
-        },
-        {
-          name          = "ubuntu24-main"
-          products      = ["Ubuntu24.04"]
-          configuration = "deb http://archive.ubuntu.com/ubuntu noble main restricted universe multiverse"
-        }
-      ]
+      patch_sources        = []  
     }
 
     windows = {
@@ -160,7 +129,7 @@ variable "availability_zone" {
 }
 
 variable "public_subnet_cidr" {
-  description = "CIDR for public subnet where WSUS server lives"
+  description = "CIDR for public subnet where apt-cache server lives"  
   type        = string
   default     = "10.0.2.0/24"
 }

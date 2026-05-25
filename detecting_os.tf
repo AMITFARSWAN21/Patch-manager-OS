@@ -205,68 +205,8 @@ resource "aws_ec2_tag" "ssm_platform_version_tag" {
 }
 
 
-# ============================================================
-# SSM ASSOCIATION — Configure apt proxy on Ubuntu instances
-# Runs automatically on terraform apply
-# Targets all valid ubuntu instances found by detecting_os.tf
-# ============================================================
-resource "aws_ssm_association" "configure_ubuntu_proxy" {
-  for_each = {
-    for id, instance in local.valid_instances :
-    id => instance
-    if instance.detected_os == "ubuntu"
-  }
-
-  name             = "AWS-RunShellScript"
-  association_name = "Ubuntu-Proxy-${each.key}"
-
-  targets {
-    key    = "InstanceIds"
-    values = [each.key]
-  }
-
-  parameters = {
-    commands = "APT_CACHE_IP=${aws_instance.apt_cache_server.private_ip} && echo \"Acquire::http::Proxy \\\"http://$APT_CACHE_IP:3142\\\";\" > /etc/apt/apt.conf.d/01proxy && echo proxy configured at $(date) >> /var/log/ssm-init.log"
-  }
-
-  depends_on = [
-    aws_ec2_tag.os_tag,
-    aws_instance.apt_cache_server
-  ]
-}
 
 
-# ============================================================
-# SSM ASSOCIATION — Configure WSUS on Windows instances
-# Runs automatically on terraform apply
-# Targets all valid windows instances found by detecting_os.tf
-# ============================================================
-# resource "aws_ssm_association" "configure_windows_wsus" {
-#   for_each = {
-#     for id, instance in local.valid_instances :
-#     id => instance
-#     if instance.detected_os == "windows"
-#   }
-
-#   name             = "AWS-RunPowerShellScript"
-#   association_name = "Windows-WSUS-${each.key}"
-
-#   targets {
-#     key    = "InstanceIds"
-#     values = [each.key]
-#   }
-
-#   parameters = {
-#     commands = "$wsusIp = '${aws_instance.wsus_server.private_ip}'; $wuPath = 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate'; $auPath = 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU'; if (!(Test-Path $wuPath)) { New-Item -Path $wuPath -Force }; if (!(Test-Path $auPath)) { New-Item -Path $auPath -Force }; Set-ItemProperty -Path $wuPath -Name WUServer -Value \"http://$wsusIp`:8530\" -Force; Set-ItemProperty -Path $wuPath -Name WUStatusServer -Value \"http://$wsusIp`:8530\" -Force; Set-ItemProperty -Path $auPath -Name UseWUServer -Value 1 -Force; Restart-Service wuauserv -Force; Write-Output 'WSUS configured'"
-#   }
-
-#   depends_on = [
-#     aws_ec2_tag.os_tag,
-#     aws_instance.wsus_server
-#   ]
-# }
-
-# Outputs
 output "instances_needing_review" {
   description = "Instances skipped due to missing SSM management or unsupported OS"
   value = [
