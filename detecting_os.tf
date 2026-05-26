@@ -94,30 +94,49 @@ locals {
       ssm_computer_name    = data.external.ssm_inventory[id].result.computer_name
       ssm_agent_version    = data.external.ssm_inventory[id].result.agent_version
 
-      detected_os = (
-        lookup(data.aws_instance.production_details[id].tags, "OS", "") != "" ? lower(lookup(data.aws_instance.production_details[id].tags, "OS", "")) :
+      # detected_os = (
+      #   lookup(data.aws_instance.production_details[id].tags, "OS", "") != "" ? lower(lookup(data.aws_instance.production_details[id].tags, "OS", "")) :
 
-        data.external.ssm_inventory[id].result.ssm_managed == "true" ? (
-          lower(data.external.ssm_inventory[id].result.platform_type) == "windows" ? "windows" :
+      #   data.external.ssm_inventory[id].result.ssm_managed == "true" ? (
+      #     lower(data.external.ssm_inventory[id].result.platform_type) == "windows" ? "windows" :
 
-          lower(data.external.ssm_inventory[id].result.platform_type) == "linux" ? (
-            can(regex("(?i)(amazon.*linux|amzn)", data.external.ssm_inventory[id].result.platform_name)) ? "amazonlinux" :
-            can(regex("(?i)(ubuntu)",             data.external.ssm_inventory[id].result.platform_name)) ? "ubuntu"      :
-            can(regex("(?i)(red.*hat|rhel)",      data.external.ssm_inventory[id].result.platform_name)) ? "rhel"        :
-            can(regex("(?i)(centos)",             data.external.ssm_inventory[id].result.platform_name)) ? "centos"      :
-            can(regex("(?i)(debian)",             data.external.ssm_inventory[id].result.platform_name)) ? "debian"      :
-            can(regex("(?i)(suse|sles)",          data.external.ssm_inventory[id].result.platform_name)) ? "suse"        :
-            can(regex("(?i)(oracle)",             data.external.ssm_inventory[id].result.platform_name)) ? "oracle"      :
-            can(regex("(?i)(rocky)",              data.external.ssm_inventory[id].result.platform_name)) ? "rocky"       :
-            can(regex("(?i)(alma)",               data.external.ssm_inventory[id].result.platform_name)) ? "alma"        :
-            "linux"
-          ) :
+      #     lower(data.external.ssm_inventory[id].result.platform_type) == "linux" ? (
+      #       can(regex("(?i)(amazon.*linux|amzn)", data.external.ssm_inventory[id].result.platform_name)) ? "amazonlinux" :
+      #       can(regex("(?i)(ubuntu)",             data.external.ssm_inventory[id].result.platform_name)) ? "ubuntu"      :
+      #       can(regex("(?i)(red.*hat|rhel)",      data.external.ssm_inventory[id].result.platform_name)) ? "rhel"        :
+      #       can(regex("(?i)(centos)",             data.external.ssm_inventory[id].result.platform_name)) ? "centos"      :
+      #       can(regex("(?i)(debian)",             data.external.ssm_inventory[id].result.platform_name)) ? "debian"      :
+      #       can(regex("(?i)(suse|sles)",          data.external.ssm_inventory[id].result.platform_name)) ? "suse"        :
+      #       can(regex("(?i)(oracle)",             data.external.ssm_inventory[id].result.platform_name)) ? "oracle"      :
+      #       can(regex("(?i)(rocky)",              data.external.ssm_inventory[id].result.platform_name)) ? "rocky"       :
+      #       can(regex("(?i)(alma)",               data.external.ssm_inventory[id].result.platform_name)) ? "alma"        :
+      #       "linux"
+      #     ) :
 
-          lower(data.external.ssm_inventory[id].result.platform_type) == "macos" ? "macos" :
-          "unknown"
-        ) :
-        "unknown"
-      )
+      #     lower(data.external.ssm_inventory[id].result.platform_type) == "macos" ? "macos" :
+      #     "unknown"
+      #   ) :
+      #   "unknown"
+      # )
+
+     detected_os = (
+  lookup(data.aws_instance.production_details[id].tags, "OS", "") != "" ? lower(lookup(data.aws_instance.production_details[id].tags, "OS", "")) :
+
+  data.external.ssm_inventory[id].result.ssm_managed == "true" ? (
+    lower(data.external.ssm_inventory[id].result.platform_type) == "windows" ? "windows" :
+
+    lower(data.external.ssm_inventory[id].result.platform_type) == "linux" ? (
+      can(regex("(?i)(amazon.*linux.*2023|al2023)", data.external.ssm_inventory[id].result.platform_name)) ? "amazonlinux"  :
+      can(regex("(?i)(amazon.*linux|amzn)",         data.external.ssm_inventory[id].result.platform_name)) ? "amazonlinux2" :
+      can(regex("(?i)(ubuntu)",                     data.external.ssm_inventory[id].result.platform_name)) ? "ubuntu"       :
+      "linux"
+    ) :
+
+    lower(data.external.ssm_inventory[id].result.platform_type) == "macos" ? "macos" :
+    "unknown"
+  ) :
+  "unknown"
+)
 
       detection_confidence = (
         lookup(data.aws_instance.production_details[id].tags, "OS", "") != ""        ? "manual"       :
