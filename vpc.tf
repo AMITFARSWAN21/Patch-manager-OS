@@ -196,6 +196,31 @@ resource "aws_vpc_endpoint" "s3_gateway" {
   vpc_endpoint_type = "Gateway"
   route_table_ids   = [aws_route_table.private.id]
 
+  # AWS says include this policy on the endpoint
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "AllowAmazonLinuxRepos"
+        Effect    = "Allow"
+        Principal = "*"
+        Action    = [
+          "s3:GetObject"
+        ]
+        Resource  = [
+          # Amazon Linux 2023 repo buckets
+          "arn:aws:s3:::al2023-repos-${var.aws_region}-*/*",
+          # SSM patch metadata
+          "arn:aws:s3:::patch-baseline-operations-${var.aws_region}/*",
+          # SSM agent packages
+          "arn:aws:s3:::aws-ssm-${var.aws_region}/*",
+          "arn:aws:s3:::amazon-ssm-${var.aws_region}/*",
+          "arn:aws:s3:::amazon-ssm-packages-${var.aws_region}/*"
+        ]
+      }
+    ]
+  })
+
   tags = {
     Name        = "endpoint-s3-gateway"
     Environment = "Production"
