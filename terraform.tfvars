@@ -76,6 +76,24 @@ os_patch_configs = {
     approved_patches = []
     patch_sources    = []
   }
+
+  amazonlinux2 = {
+  operating_system = "AMAZON_LINUX_2"
+  patch_filters = {
+    "CLASSIFICATION" = ["Security", "Bugfix", "Enhancement"]
+    "SEVERITY"       = ["Critical", "Important", "Medium"]
+  }
+  compliance_level     = "HIGH"
+  approval_delay       = 0
+  schedule             = "cron(0 0/30 * 1/1 * ? *)"
+  duration             = 2
+  max_concurrency      = "100%"
+  max_errors           = "0%"
+  enable_non_security  = true
+  use_approved_patches = false
+  approved_patches     = []
+  patch_sources        = []
+}
 }
 
 environment_patterns = ["Production", "prod", "PROD", "production"]
