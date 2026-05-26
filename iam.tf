@@ -26,11 +26,7 @@ resource "aws_iam_role_policy_attachment" "ssm_managed_instance_core" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
-# Attach S3 Full Access for WSUS server to upload files
-resource "aws_iam_role_policy_attachment" "ec2_s3_full_access" {
-  role       = aws_iam_role.ec2_ssm_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
-}
+
 # Instance profile
 resource "aws_iam_instance_profile" "ec2_ssm_profile" {
   name = "EC2-SSM-Inspector-TestProfile-${random_string.suffix.result}"

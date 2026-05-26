@@ -202,21 +202,6 @@ resource "aws_vpc_endpoint" "s3_gateway" {
   }
 }
 
-resource "aws_vpc_endpoint" "s3_interface" {
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${var.aws_region}.s3"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = [aws_subnet.private.id]
-  security_group_ids  = [aws_security_group.vpc_endpoints_sg.id]
-  private_dns_enabled = true
-
-  depends_on = [aws_vpc_endpoint.s3_gateway]
-
-  tags = {
-    Name        = "endpoint-s3-interface"
-    Environment = "Production"
-  }
-}
 
 resource "aws_vpc_endpoint" "inspector2" {
   vpc_id              = aws_vpc.main.id
