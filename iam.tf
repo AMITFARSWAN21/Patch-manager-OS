@@ -27,6 +27,30 @@ resource "aws_iam_role_policy_attachment" "ssm_managed_instance_core" {
 }
 
 
+resource "aws_iam_role_policy" "ec2_s3_al2023_repos" {
+  name = "EC2-S3-AL2023-Repos-${random_string.suffix.result}"
+  role = aws_iam_role.ec2_ssm_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = ["s3:GetObject"]
+        Resource = [
+          # Amazon Linux 2023 repositories
+          "arn:aws:s3:::al2023-repos-${var.aws_region}-*/*",
+          
+          # Amazon Linux 2 repositories
+          "arn:aws:s3:::amazonlinux-2-repos-${var.aws_region}/*",
+          "arn:aws:s3:::amazonlinux.${var.aws_region}.amazonaws.com/*"
+        ]
+      }
+    ]
+  })
+}
+
+
 # Instance profile
 resource "aws_iam_instance_profile" "ec2_ssm_profile" {
   name = "EC2-SSM-Inspector-TestProfile-${random_string.suffix.result}"
