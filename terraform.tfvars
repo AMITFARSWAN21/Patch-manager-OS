@@ -29,18 +29,10 @@ os_patch_configs = {
   }
   windows = {
     operating_system = "WINDOWS"
-    patch_filters = {
-      "CLASSIFICATION" = [
-        "CriticalUpdates",
-        "SecurityUpdates",
-        "Updates"
-      ]
-      "MSRC_SEVERITY" = [
-        "Critical",
-        "Important",
-        "Moderate"
-      ]
-    }
+   patch_filters = {
+    "CLASSIFICATION" = ["CriticalUpdates", "SecurityUpdates", "Updates", "DefinitionUpdates", "FeaturePacks", "ServicePacks", "Tools", "UpdateRollups"]
+    "MSRC_SEVERITY"  = ["Critical", "Important", "Moderate", "Low", "Unspecified"]
+  }
     compliance_level     = "CRITICAL"
     approval_delay       = 0
     schedule             = "cron(0 0/30 * 1/1 * ? *)" # Every 30 minutes
@@ -57,13 +49,9 @@ os_patch_configs = {
   amazonlinux = {
     operating_system = "AMAZON_LINUX_2023"
     patch_filters = {
-      "CLASSIFICATION" = ["Security", "Bugfix", "Enhancement"]
-      "SEVERITY" = [
-        "Critical",
-        "Important",
-        "Medium" 
-      ]
-    }
+    "CLASSIFICATION" = ["Security", "Bugfix", "Enhancement", "Recommended", "Newpackage"]
+    "SEVERITY"       = ["Critical", "Important", "Medium", "Low"]
+  }
     compliance_level     = "HIGH"
     approval_delay       = 0
     schedule             = "cron(0 0/30 * 1/1 * ? *)" # Every 30 minutes
@@ -80,8 +68,8 @@ os_patch_configs = {
   amazonlinux2 = {
   operating_system = "AMAZON_LINUX_2"
   patch_filters = {
-    "CLASSIFICATION" = ["Security", "Bugfix", "Enhancement"]
-    "SEVERITY"       = ["Critical", "Important", "Medium"]
+    "CLASSIFICATION" = ["Security", "Bugfix", "Enhancement", "Recommended", "Newpackage"]
+    "SEVERITY"       = ["Critical", "Important", "Medium", "Low"]
   }
   compliance_level     = "HIGH"
   approval_delay       = 0
