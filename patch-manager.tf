@@ -98,9 +98,9 @@ resource "aws_ssm_maintenance_window_target" "os_targets" {
   }
 }
 
-# Maintenance window tasks for ALL OS types
+# Task for ALL OS types EXCEPT Windows — single step is fine for Linux
 resource "aws_ssm_maintenance_window_task" "os_patch_tasks" {
-  for_each = var.os_patch_configs
+  for_each = { for k, v in var.os_patch_configs : k => v if k != "windows" }
 
   window_id        = aws_ssm_maintenance_window.os_maintenance_windows[each.key].id
   name             = "${each.key}-Production-PatchTask"
@@ -124,13 +124,77 @@ resource "aws_ssm_maintenance_window_task" "os_patch_tasks" {
         name   = "Operation"
         values = ["Install"]
       }
-
       parameter {
         name   = "RebootOption"
         values = ["RebootIfNeeded"]
       }
-
       timeout_seconds = 7200
+    }
+  }
+}
+
+# Windows Task 1 — install all patches, NO reboot
+resource "aws_ssm_maintenance_window_task" "windows_install" {
+  window_id        = aws_ssm_maintenance_window.os_maintenance_windows["windows"].id
+  name             = "windows-Production-PatchTask-Install"
+  description      = "Install patches on Windows production instances"
+  task_type        = "RUN_COMMAND"
+  task_arn         = "AWS-RunPatchBaseline"
+  service_role_arn = aws_iam_role.maintenance_window_role.arn
+
+  priority        = 1
+  max_concurrency = var.os_patch_configs["windows"].max_concurrency
+  max_errors      = var.os_patch_configs["windows"].max_errors
+
+  targets {
+    key    = "WindowTargetIds"
+    values = [aws_ssm_maintenance_window_target.os_targets["windows"].id]
+  }
+
+  task_invocation_parameters {
+    run_command_parameters {
+      parameter {
+        name   = "Operation"
+        values = ["Install"]
+      }
+      parameter {
+        name   = "RebootOption"
+        values = ["NoReboot"]        # installs everything, holds reboot
+      }
+      timeout_seconds = 7200
+    }
+  }
+}
+
+# Windows Task 2 — reboot cleanly after all patches finish
+resource "aws_ssm_maintenance_window_task" "windows_reboot" {
+  window_id        = aws_ssm_maintenance_window.os_maintenance_windows["windows"].id
+  name             = "windows-Production-PatchTask-Reboot"
+  description      = "Reboot Windows instances after patching"
+  task_type        = "RUN_COMMAND"
+  task_arn         = "AWS-RunPatchBaseline"
+  service_role_arn = aws_iam_role.maintenance_window_role.arn
+
+  priority        = 2              # runs only after priority 1 fully completes
+  max_concurrency = var.os_patch_configs["windows"].max_concurrency
+  max_errors      = var.os_patch_configs["windows"].max_errors
+
+  targets {
+    key    = "WindowTargetIds"
+    values = [aws_ssm_maintenance_window_target.os_targets["windows"].id]
+  }
+
+  task_invocation_parameters {
+    run_command_parameters {
+      parameter {
+        name   = "Operation"
+        values = ["Install"]
+      }
+      parameter {
+        name   = "RebootOption"
+        values = ["RebootIfNeeded"]  # reboot happens here, cleanly after all patches done
+      }
+      timeout_seconds = 3600
     }
   }
 }
