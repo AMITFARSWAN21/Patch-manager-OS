@@ -19,7 +19,7 @@ os_patch_configs = {
     schedule             = "cron(0 0/30 * 1/1 * ? *)" # Every 30 minutes
     duration             = 2
     max_concurrency      = "100%"
-    max_errors           = "0%"
+    max_errors           = "10%"
     enable_non_security  = true
     use_approved_patches = true
     # ADDED: Explicit patch approval for Ubuntu - includes your CVEs
@@ -30,8 +30,8 @@ os_patch_configs = {
   windows = {
     operating_system = "WINDOWS"
    patch_filters = {
-    "CLASSIFICATION" = ["CriticalUpdates", "SecurityUpdates", "Updates", "DefinitionUpdates", "FeaturePacks", "ServicePacks", "Tools", "UpdateRollups"]
-    "MSRC_SEVERITY"  = ["Critical", "Important", "Moderate", "Low", "Unspecified"]
+    "CLASSIFICATION" = ["CriticalUpdates", "SecurityUpdates"]
+    "MSRC_SEVERITY"  = ["Critical", "Important"]
   }
     compliance_level     = "CRITICAL"
     approval_delay       = 0
@@ -84,7 +84,7 @@ os_patch_configs = {
 }
 }
 
-environment_patterns = ["Production", "prod", "PROD", "production"]
+
 
 additional_tags = {
   ManagedBy = "Terraform"

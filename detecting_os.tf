@@ -5,10 +5,6 @@
 # Single call — fetches all matching instance IDs
 data "aws_instances" "production_instances" {
   filter {
-    name   = "tag:Environment"
-    values = var.environment_patterns
-  }
-  filter {
     name   = "instance-state-name"
     values = ["running"]
   }
@@ -227,11 +223,12 @@ resource "aws_ec2_tag" "instance_tags" {
 # silently succeeding with nothing patched
 # ============================================================
 
+# AFTER — remove var.environment_patterns reference
 output "instance_discovery_status" {
   description = "Confirms how many instances were found — alerts if zero"
   value = (
     length(data.aws_instances.production_instances.ids) == 0
-    ? "WARNING: No running instances found matching environment patterns ${jsonencode(var.environment_patterns)}. Nothing will be patched."
+    ? "WARNING: No running instances found in this account/region. Nothing will be patched."
     : "OK: ${length(data.aws_instances.production_instances.ids)} instances found. ${length(local.valid_instances)} valid, ${length(local.review_instances)} need review."
   )
 }

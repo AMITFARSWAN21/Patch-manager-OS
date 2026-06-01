@@ -83,11 +83,6 @@ resource "aws_ssm_maintenance_window_target" "os_targets" {
   resource_type = "INSTANCE"
 
   targets {
-    key    = "tag:Environment"
-    values = var.environment_patterns
-  }
-
-  targets {
     key    = "tag:OS"
     values = [each.key]
   }

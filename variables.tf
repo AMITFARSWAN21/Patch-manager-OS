@@ -10,11 +10,6 @@ variable "target_environment" {
   default     = "Production"
 }
 
-variable "environment_patterns" {
-  description = "Environment tag patterns to match"
-  type        = list(string)
-  default     = ["Production", "prod", "PROD", "production"]
-}
 
 variable "os_patch_configs" {
   description = "Patch management configurations"
@@ -50,7 +45,7 @@ variable "os_patch_configs" {
       schedule             = "cron(0 0/30 * 1/1 * ? *)"
       duration             = 2
       max_concurrency      = "100%"
-      max_errors           = "0%"
+      max_errors           = "10%"
       enable_non_security  = true
       use_approved_patches = true
       approved_patches     = ["*"]
@@ -60,8 +55,8 @@ variable "os_patch_configs" {
     windows = {
       operating_system = "WINDOWS"
        patch_filters = {
-    "CLASSIFICATION" = ["CriticalUpdates", "SecurityUpdates", "Updates", "DefinitionUpdates", "FeaturePacks", "ServicePacks", "Tools", "UpdateRollups"]
-    "MSRC_SEVERITY"  = ["Critical", "Important", "Moderate", "Low", "Unspecified"]
+    "CLASSIFICATION" = ["CriticalUpdates", "SecurityUpdates"]
+    "MSRC_SEVERITY"  = ["Critical", "Important"]
   }
       compliance_level     = "CRITICAL"
       approval_delay       = 0

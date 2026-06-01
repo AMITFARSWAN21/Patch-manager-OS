@@ -66,45 +66,45 @@ resource "aws_security_group" "ssm_windows_sg" {
   }
 }
 
-# # ============================================================
-# # UBUNTU INSTANCE SECURITY GROUP
-# # Ubuntu patches directly via NAT Gateway → Canonical
-# # ============================================================
+# ============================================================
+# UBUNTU INSTANCE SECURITY GROUP
+# Ubuntu patches directly via NAT Gateway → Canonical
+# ============================================================
 
-# resource "aws_security_group" "ssm_ubuntu_sg" {
-#   name        = "ssm-ubuntu-test-sg-${random_string.suffix.result}"
-#   description = "Ubuntu instances - outbound to VPC endpoints and Canonical via NAT"
-#   vpc_id      = aws_vpc.main.id
+resource "aws_security_group" "ssm_ubuntu_sg" {
+  name        = "ssm-ubuntu-test-sg-${random_string.suffix.result}"
+  description = "Ubuntu instances - outbound to VPC endpoints and Canonical via NAT"
+  vpc_id      = aws_vpc.main.id
 
-#   egress {
-#     description = "HTTPS to VPC endpoints for SSM"
-#     from_port   = 443
-#     to_port     = 443
-#     protocol    = "tcp"
-#     cidr_blocks = [var.vpc_cidr]
-#   }
+  egress {
+    description = "HTTPS to VPC endpoints for SSM"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
 
-#   egress {
-#     description = "HTTPS to Canonical repos via NAT Gateway"
-#     from_port   = 443
-#     to_port     = 443
-#     protocol    = "tcp"
-#     cidr_blocks = ["0.0.0.0/0"]
-#   }
+  egress {
+    description = "HTTPS to Canonical repos via NAT Gateway"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-#   egress {
-#     description = "HTTP to Canonical repos via NAT Gateway"
-#     from_port   = 80
-#     to_port     = 80
-#     protocol    = "tcp"
-#     cidr_blocks = ["0.0.0.0/0"]
-#   }
+  egress {
+    description = "HTTP to Canonical repos via NAT Gateway"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-#   tags = {
-#     Name        = "ssm-ubuntu-test-sg"
-#     Environment = "Production"
-#   }
-# }
+  tags = {
+    Name        = "ssm-ubuntu-test-sg"
+    Environment = "Production"
+  }
+}
 
 # ============================================================
 # WINDOWS EC2 INSTANCE
@@ -178,59 +178,58 @@ resource "aws_instance" "windows_ssm_test" {
 # # Patches directly via NAT Gateway → Canonical
 # # ============================================================
 
-# resource "aws_instance" "ubuntu22_ssm_test" {
-#   ami                    = "ami-0f457776b2f2411c1"
-#   instance_type          = "t3.medium"
-#   subnet_id              = aws_subnet.private.id
-#   vpc_security_group_ids = [
-#     aws_security_group.ssm_ubuntu_sg.id,
-#     data.aws_security_group.default_sg.id
-#   ]
-#   iam_instance_profile = aws_iam_instance_profile.ec2_ssm_profile.name
+resource "aws_instance" "ubuntu22_ssm_test" {
+  ami                    = "ami-0f457776b2f2411c1"
+  instance_type          = "t3.medium"
+  subnet_id              = aws_subnet.private.id
+  vpc_security_group_ids = [
+    aws_security_group.ssm_ubuntu_sg.id,
+    data.aws_security_group.default_sg.id
+  ]
+  iam_instance_profile = aws_iam_instance_profile.ec2_ssm_profile.name
 
-#   user_data = <<-EOF
-#     #!/bin/bash
-#     systemctl enable amazon-ssm-agent
-#     systemctl start amazon-ssm-agent
-#     echo "SSM Agent started at $(date)" > /var/log/ssm-init.log
+  user_data = <<-EOF
+    #!/bin/bash
+    systemctl enable amazon-ssm-agent
+    systemctl start amazon-ssm-agent
+    echo "SSM Agent started at $(date)" > /var/log/ssm-init.log
 
-#     # Remove proxy config if exists
-#     rm -f /etc/apt/apt.conf.d/01proxy
-#     echo "Using direct internet via NAT Gateway" >> /var/log/ssm-init.log
-#     echo "Ubuntu 22.04 setup complete at $(date)" >> /var/log/ssm-init.log
-#   EOF
+    # Remove proxy config if exists
+    rm -f /etc/apt/apt.conf.d/01proxy
+    echo "Using direct internet via NAT Gateway" >> /var/log/ssm-init.log
+    echo "Ubuntu 22.04 setup complete at $(date)" >> /var/log/ssm-init.log
+  EOF
 
-#   root_block_device {
-#     volume_type           = "gp3"
-#     volume_size           = 30
-#     delete_on_termination = true
-#     encrypted             = true
+  root_block_device {
+    volume_type           = "gp3"
+    volume_size           = 30
+    delete_on_termination = true
+    encrypted             = true
 
-#     tags = {
-#       Name        = "ubuntu22-ssm-test-root"
-#       Environment = "Production"
-#     }
-#   }
+    tags = {
+      Name        = "ubuntu22-ssm-test-root"
+      Environment = "Production"
+    }
+  }
 
-#   tags = {
-#     Name        = "Ubuntu22-SSM-Test-${random_string.suffix.result}"
-#     Environment = "Production"
-#   }
+  tags = {
+    Name        = "Ubuntu22-SSM-Test-${random_string.suffix.result}"
+    Environment = "Production"
+  }
 
-#   lifecycle {
-#     ignore_changes = [tags,user_data]
-#   }
+  lifecycle {
+    ignore_changes = [tags,user_data]
+  }
 
-#   depends_on = [
-#     aws_iam_instance_profile.ec2_ssm_profile,
-#     aws_nat_gateway.main,
-#     aws_vpc_endpoint.ssm,
-#     aws_vpc_endpoint.ssmmessages,
-#     aws_vpc_endpoint.ec2messages,
-#     aws_vpc_endpoint.ec2,
-#     aws_vpc_endpoint.s3_interface
-#   ]
-# }
+  depends_on = [
+    aws_iam_instance_profile.ec2_ssm_profile,
+    aws_nat_gateway.main,
+    aws_vpc_endpoint.ssm,
+    aws_vpc_endpoint.ssmmessages,
+    aws_vpc_endpoint.ec2messages,
+    aws_vpc_endpoint.ec2
+  ]
+}
 
 # # ============================================================
 # # UBUNTU 24.04 EC2 INSTANCE
@@ -310,20 +309,20 @@ resource "aws_instance" "windows_ssm_test" {
 #   value       = "aws ssm start-session --target ${aws_instance.windows_ssm_test.id}"
 # }
 
-# output "ubuntu22_instance_id" {
-#   description = "Instance ID of Ubuntu 22.04"
-#   value       = aws_instance.ubuntu22_ssm_test.id
-# }
+output "ubuntu22_instance_id" {
+  description = "Instance ID of Ubuntu 22.04"
+  value       = aws_instance.ubuntu22_ssm_test.id
+}
 
-# output "ubuntu22_instance_private_ip" {
-#   description = "Private IP of Ubuntu 22.04"
-#   value       = aws_instance.ubuntu22_ssm_test.private_ip
-# }
+output "ubuntu22_instance_private_ip" {
+  description = "Private IP of Ubuntu 22.04"
+  value       = aws_instance.ubuntu22_ssm_test.private_ip
+}
 
-# output "ubuntu22_ssm_session_command" {
-#   description = "Connect to Ubuntu 22.04 via Session Manager"
-#   value       = "aws ssm start-session --target ${aws_instance.ubuntu22_ssm_test.id}"
-# }
+output "ubuntu22_ssm_session_command" {
+  description = "Connect to Ubuntu 22.04 via Session Manager"
+  value       = "aws ssm start-session --target ${aws_instance.ubuntu22_ssm_test.id}"
+}
 
 # output "ubuntu24_instance_id" {
 #   description = "Instance ID of Ubuntu 24.04"
