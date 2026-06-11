@@ -4,6 +4,7 @@
 
 # Single call — fetches all matching instance IDs
 data "aws_instances" "production_instances" {
+
   filter {
     name   = "instance-state-name"
     values = ["running"]

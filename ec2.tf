@@ -2,26 +2,6 @@
 # DATA SOURCES
 # ============================================================
 
-data "aws_ami" "windows_2022" {
-  most_recent = true
-  owners      = ["amazon"]
-
-  filter {
-    name   = "name"
-    values = ["Windows_Server-2022-English-Full-Base-*"]
-  }
-
-  filter {
-    name   = "state"
-    values = ["available"]
-  }
-
-  filter {
-    name   = "architecture"
-    values = ["x86_64"]
-  }
-}
-
 data "aws_security_group" "default_sg" {
   name   = "default"
   vpc_id = aws_vpc.main.id
@@ -33,7 +13,7 @@ data "aws_security_group" "default_sg" {
 
 resource "aws_security_group" "ssm_windows_sg" {
   name        = "ssm-windows-test-sg-${random_string.suffix.result}"
-  description = "Windows instances - outbound to VPC endpoints and Microsoft Update via NAT"
+  description = "Windows instances - SSM via VPC endpoints, patches via WSUS"
   vpc_id      = aws_vpc.main.id
 
   egress {
@@ -44,97 +24,81 @@ resource "aws_security_group" "ssm_windows_sg" {
     cidr_blocks = [var.vpc_cidr]
   }
 
-  egress {
-    description = "HTTPS to Microsoft Update via NAT Gateway"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+   egress {
+    description     = "HTTPS to S3 via gateway endpoint"
+    from_port       = 443
+    to_port         = 443
+    protocol        = "tcp"
+    prefix_list_ids = [aws_vpc_endpoint.s3_gateway.prefix_list_id]
   }
 
   egress {
-    description = "HTTP to Microsoft Update via NAT Gateway"
-    from_port   = 80
-    to_port     = 80
+    description = "WSUS HTTP to WSUS server port 8530"
+    from_port   = 8530
+    to_port     = 8530
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  egress {
+    description = "WSUS HTTPS to WSUS server port 8531"
+    from_port   = 8531
+    to_port     = 8531
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
   }
 
   tags = {
     Name        = "ssm-windows-test-sg"
-    Environment = "Production"
-  }
-}
-
-# ============================================================
-# UBUNTU INSTANCE SECURITY GROUP
-# Ubuntu patches directly via NAT Gateway → Canonical
-# ============================================================
-
-resource "aws_security_group" "ssm_ubuntu_sg" {
-  name        = "ssm-ubuntu-test-sg-${random_string.suffix.result}"
-  description = "Ubuntu instances - outbound to VPC endpoints and Canonical via NAT"
-  vpc_id      = aws_vpc.main.id
-
-  egress {
-    description = "HTTPS to VPC endpoints for SSM"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
-  }
-
-  egress {
-    description = "HTTPS to Canonical repos via NAT Gateway"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    description = "HTTP to Canonical repos via NAT Gateway"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name        = "ssm-ubuntu-test-sg"
-    Environment = "Production"
+    Environment = var.target_environment
   }
 }
 
 # ============================================================
 # WINDOWS EC2 INSTANCE
+# Oldest available Server 2022 AMI - March 2026
+# Patches via WSUS server inside VPC - no direct internet
 # ============================================================
 
 resource "aws_instance" "windows_ssm_test" {
-  # ami = data.aws_ami.windows_2022.id  ← use for production
   ami                    = "ami-038b0fc52513087d0"
   instance_type          = "t3.medium"
   subnet_id              = aws_subnet.private.id
   vpc_security_group_ids = [
-    aws_security_group.ssm_windows_sg.id,
-    data.aws_security_group.default_sg.id
+    aws_security_group.ssm_windows_sg.id
   ]
   iam_instance_profile = aws_iam_instance_profile.ec2_ssm_profile.name
 
   user_data = <<-EOF
     <powershell>
+    # Step 1 - Start SSM Agent
     Start-Service AmazonSSMAgent -ErrorAction SilentlyContinue
     Set-Service AmazonSSMAgent -StartupType Automatic
     Write-Output "SSM Agent started at $(Get-Date)" | Out-File C:\ssm-init.log
 
-    $wuPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate"
-    if (Test-Path $wuPath) {
-      Remove-Item -Path $wuPath -Recurse -Force
-      Write-Output "Removed old WSUS registry keys at $(Get-Date)" | Out-File C:\ssm-init.log -Append
-    }
+    # Step 2 - Point Windows Update to WSUS server inside VPC
+    $wuPath   = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate"
+    $wuAUPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU"
 
+    New-Item -Path $wuPath   -Force | Out-Null
+    New-Item -Path $wuAUPath -Force | Out-Null
+
+    Set-ItemProperty -Path $wuPath   -Name "WUServer"       -Value "http://${aws_instance.wsus_server.private_ip}:8530"
+    Set-ItemProperty -Path $wuPath   -Name "WUStatusServer" -Value "http://${aws_instance.wsus_server.private_ip}:8530"
+    Set-ItemProperty -Path $wuAUPath -Name "UseWUServer"    -Value 1 -Type DWord
+    Set-ItemProperty -Path $wuAUPath -Name "AUOptions"      -Value 3 -Type DWord
+    Set-ItemProperty -Path $wuAUPath -Name "NoAutoUpdate"   -Value 0 -Type DWord
+
+    Write-Output "WSUS registry keys set at $(Get-Date)" | Out-File C:\ssm-init.log -Append
+
+    # Step 3 - Restart Windows Update service
     Restart-Service wuauserv -Force
-    Write-Output "Windows Update configured for direct Microsoft access at $(Get-Date)" | Out-File C:\ssm-init.log -Append
+    Write-Output "Windows Update service restarted at $(Get-Date)" | Out-File C:\ssm-init.log -Append
+
+    # Step 4 - Register with WSUS
+    wuauclt /resetauthorization /detectnow
+    Write-Output "Registered with WSUS at $(Get-Date)" | Out-File C:\ssm-init.log -Append
+
     Write-Output "Windows Server 2022 setup complete at $(Get-Date)" | Out-File C:\ssm-init.log -Append
     </powershell>
   EOF
@@ -147,25 +111,27 @@ resource "aws_instance" "windows_ssm_test" {
 
     tags = {
       Name        = "windows-ssm-test-root"
-      Environment = "Production"
+      Environment = var.target_environment
     }
   }
 
   tags = {
-    Name        = "Windows-SSM-Test-${random_string.suffix.result}"
-    Environment = "Production"
+    Name       = "Windows-SSM-Test-${random_string.suffix.result}"
+    OS         = "windows"
+    AutoPatch  = "true"
+    Environment = var.target_environment
   }
 
   lifecycle {
     ignore_changes = [
-      tags,
-      user_data
-      ]
+      user_data,
+      ami,
+      tags
+    ]
   }
 
   depends_on = [
     aws_iam_instance_profile.ec2_ssm_profile,
-    aws_nat_gateway.main,
     aws_vpc_endpoint.ssm,
     aws_vpc_endpoint.ssmmessages,
     aws_vpc_endpoint.ec2messages,
@@ -173,168 +139,63 @@ resource "aws_instance" "windows_ssm_test" {
   ]
 }
 
-# # ============================================================
-# # UBUNTU 22.04 EC2 INSTANCE
-# # Patches directly via NAT Gateway → Canonical
-# # ============================================================
+# ============================================================
+# SSM ASSOCIATION — Configure WSUS on Windows instances
+# Runs daily on all instances tagged OS=windows
+# Sets registry to point Windows Update at WSUS server
+# Ensures wuauserv service is running (required for patching)
+# Forces WSUS registration via wuauclt
+# ============================================================
+resource "aws_ssm_association" "configure_wsus_on_windows" {
+  name                = "AWS-RunPowerShellScript"
+  schedule_expression = "rate(1 day)"
 
-resource "aws_instance" "ubuntu22_ssm_test" {
-  ami                    = "ami-0f457776b2f2411c1"
-  instance_type          = "t3.medium"
-  subnet_id              = aws_subnet.private.id
-  vpc_security_group_ids = [
-    aws_security_group.ssm_ubuntu_sg.id,
-    data.aws_security_group.default_sg.id
-  ]
-  iam_instance_profile = aws_iam_instance_profile.ec2_ssm_profile.name
-
-  user_data = <<-EOF
-    #!/bin/bash
-    systemctl enable amazon-ssm-agent
-    systemctl start amazon-ssm-agent
-    echo "SSM Agent started at $(date)" > /var/log/ssm-init.log
-
-    # Remove proxy config if exists
-    rm -f /etc/apt/apt.conf.d/01proxy
-    echo "Using direct internet via NAT Gateway" >> /var/log/ssm-init.log
-    echo "Ubuntu 22.04 setup complete at $(date)" >> /var/log/ssm-init.log
-  EOF
-
-  root_block_device {
-    volume_type           = "gp3"
-    volume_size           = 30
-    delete_on_termination = true
-    encrypted             = true
-
-    tags = {
-      Name        = "ubuntu22-ssm-test-root"
-      Environment = "Production"
-    }
+  targets {
+    key    = "tag:OS"
+    values = ["windows"]
   }
 
-  tags = {
-    Name        = "Ubuntu22-SSM-Test-${random_string.suffix.result}"
-    Environment = "Production"
+  parameters = {
+    commands = join("\n", [
+      "$wuPath   = 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate'",
+      "$wuAUPath = 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU'",
+      "New-Item -Path $wuPath   -Force | Out-Null",
+      "New-Item -Path $wuAUPath -Force | Out-Null",
+      "Set-ItemProperty -Path $wuPath   -Name 'WUServer'       -Value 'http://${aws_instance.wsus_server.private_ip}:8530'",
+      "Set-ItemProperty -Path $wuPath   -Name 'WUStatusServer' -Value 'http://${aws_instance.wsus_server.private_ip}:8530'",
+      "Set-ItemProperty -Path $wuAUPath -Name 'UseWUServer'    -Value 1 -Type DWord",
+      "Set-ItemProperty -Path $wuAUPath -Name 'AUOptions'      -Value 3 -Type DWord",
+      "Set-ItemProperty -Path $wuAUPath -Name 'NoAutoUpdate'   -Value 0 -Type DWord",
+      "Set-Service wuauserv -StartupType Automatic",
+      "Start-Service wuauserv -ErrorAction SilentlyContinue",
+      "wuauclt /resetauthorization /detectnow /reportnow",
+      "Write-Output 'WSUS registry configured and Windows Update service started'"
+    ])
   }
 
-  lifecycle {
-    ignore_changes = [tags,user_data]
-  }
-
-  depends_on = [
-    aws_iam_instance_profile.ec2_ssm_profile,
-    aws_nat_gateway.main,
-    aws_vpc_endpoint.ssm,
-    aws_vpc_endpoint.ssmmessages,
-    aws_vpc_endpoint.ec2messages,
-    aws_vpc_endpoint.ec2
-  ]
+  depends_on = [aws_instance.wsus_server]
 }
 
-# # ============================================================
-# # UBUNTU 24.04 EC2 INSTANCE
-# # Patches directly via NAT Gateway → Canonical
-# # ============================================================
+# ============================================================
+# OUTPUTS
+# ============================================================
 
-# resource "aws_instance" "ubuntu24_ssm_test" {
-#   ami                    = "ami-036d2bb3f14d36e07"
-#   instance_type          = "t3.medium"
-#   subnet_id              = aws_subnet.private.id
-#   vpc_security_group_ids = [
-#     aws_security_group.ssm_ubuntu_sg.id,
-#     data.aws_security_group.default_sg.id
-#   ]
-#   iam_instance_profile = aws_iam_instance_profile.ec2_ssm_profile.name
-
-#   user_data = <<-EOF
-#     #!/bin/bash
-#     systemctl enable amazon-ssm-agent
-#     systemctl start amazon-ssm-agent
-#     echo "SSM Agent started at $(date)" > /var/log/ssm-init.log
-
-#     # Remove proxy config if exists
-#     rm -f /etc/apt/apt.conf.d/01proxy
-#     echo "Using direct internet via NAT Gateway" >> /var/log/ssm-init.log
-#     echo "Ubuntu 24.04 setup complete at $(date)" >> /var/log/ssm-init.log
-#   EOF
-
-#   root_block_device {
-#     volume_type           = "gp3"
-#     volume_size           = 30
-#     delete_on_termination = true
-#     encrypted             = true
-
-#     tags = {
-#       Name        = "ubuntu24-ssm-test-root"
-#       Environment = "Production"
-#     }
-#   }
-
-#   tags = {
-#     Name        = "Ubuntu24-SSM-Test-${random_string.suffix.result}"
-#     Environment = "Production"
-#   }
-
-#   lifecycle {
-#     ignore_changes = [tags,user_data]
-#   }
-
-#   depends_on = [
-#     aws_iam_instance_profile.ec2_ssm_profile,
-#     aws_nat_gateway.main,
-#     aws_vpc_endpoint.ssm,
-#     aws_vpc_endpoint.ssmmessages,
-#     aws_vpc_endpoint.ec2messages,
-#     aws_vpc_endpoint.ec2,
-#     aws_vpc_endpoint.s3_interface
-#   ]
-# }
-
-# # ============================================================
-# # OUTPUTS
-# # ============================================================
-
-# output "windows_instance_id" {
-#   description = "Instance ID of the Windows SSM test instance"
-#   value       = aws_instance.windows_ssm_test.id
-# }
-
-# output "windows_instance_private_ip" {
-#   description = "Private IP of the Windows SSM test instance"
-#   value       = aws_instance.windows_ssm_test.private_ip
-# }
-
-# output "windows_ssm_session_command" {
-#   description = "Connect to Windows via Session Manager"
-#   value       = "aws ssm start-session --target ${aws_instance.windows_ssm_test.id}"
-# }
-
-output "ubuntu22_instance_id" {
-  description = "Instance ID of Ubuntu 22.04"
-  value       = aws_instance.ubuntu22_ssm_test.id
+output "windows_instance_id" {
+  description = "Instance ID of the Windows SSM test instance"
+  value       = aws_instance.windows_ssm_test.id
 }
 
-output "ubuntu22_instance_private_ip" {
-  description = "Private IP of Ubuntu 22.04"
-  value       = aws_instance.ubuntu22_ssm_test.private_ip
+output "windows_instance_private_ip" {
+  description = "Private IP of the Windows SSM test instance"
+  value       = aws_instance.windows_ssm_test.private_ip
 }
 
-output "ubuntu22_ssm_session_command" {
-  description = "Connect to Ubuntu 22.04 via Session Manager"
-  value       = "aws ssm start-session --target ${aws_instance.ubuntu22_ssm_test.id}"
+output "windows_ssm_session_command" {
+  description = "Connect to Windows via Session Manager"
+  value       = "aws ssm start-session --target ${aws_instance.windows_ssm_test.id} --region ${var.aws_region}"
 }
 
-# output "ubuntu24_instance_id" {
-#   description = "Instance ID of Ubuntu 24.04"
-#   value       = aws_instance.ubuntu24_ssm_test.id
-# }
-
-# output "ubuntu24_instance_private_ip" {
-#   description = "Private IP of Ubuntu 24.04"
-#   value       = aws_instance.ubuntu24_ssm_test.private_ip
-# }
-
-# output "ubuntu24_ssm_session_command" {
-#   description = "Connect to Ubuntu 24.04 via Session Manager"
-#   value       = "aws ssm start-session --target ${aws_instance.ubuntu24_ssm_test.id}"
-# }
+output "windows_wsus_verify_command" {
+  description = "Run inside SSM session to verify WSUS registry"
+  value       = "reg query HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate"
+}

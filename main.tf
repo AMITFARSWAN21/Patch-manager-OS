@@ -11,9 +11,9 @@ terraform {
   }
 }
 
-provider "aws" {
-  region = "ap-south-1"
-}
+# provider "aws" {
+#   region = "ap-south-1"
+# }
 
 # This fetches your AWS account ID automatically
 data "aws_caller_identity" "current" {}

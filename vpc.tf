@@ -29,7 +29,6 @@ resource "aws_subnet" "private" {
   }
 }
 
-# ← ADD THIS - was missing
 resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.public_subnet_cidr
@@ -44,6 +43,7 @@ resource "aws_subnet" "public" {
 
 # ============================================================
 # INTERNET GATEWAY
+# Used by WSUS server (public subnet) to sync from Microsoft
 # ============================================================
 
 resource "aws_internet_gateway" "main" {
@@ -61,6 +61,11 @@ resource "aws_internet_gateway" "main" {
 
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.main.id
+
+  # No default route — private instances use:
+  # 1. VPC endpoints for SSM communication
+  # 2. WSUS server (inside VPC) for patching
+  # No internet access required for Windows-only patching
 
   tags = {
     Name        = "ssm-patch-private-rt"
@@ -132,13 +137,15 @@ resource "aws_security_group" "vpc_endpoints_sg" {
 
 # ============================================================
 # VPC INTERFACE ENDPOINTS
+# Both subnets included — WSUS (public) and instances (private)
+# both need SSM communication
 # ============================================================
 
 resource "aws_vpc_endpoint" "ssm" {
   vpc_id              = aws_vpc.main.id
   service_name        = "com.amazonaws.${var.aws_region}.ssm"
   vpc_endpoint_type   = "Interface"
-  subnet_ids          = [aws_subnet.private.id]
+  subnet_ids          = [aws_subnet.private.id]  # ← both subnets
   security_group_ids  = [aws_security_group.vpc_endpoints_sg.id]
   private_dns_enabled = true
 
@@ -152,7 +159,7 @@ resource "aws_vpc_endpoint" "ssmmessages" {
   vpc_id              = aws_vpc.main.id
   service_name        = "com.amazonaws.${var.aws_region}.ssmmessages"
   vpc_endpoint_type   = "Interface"
-  subnet_ids          = [aws_subnet.private.id]
+  subnet_ids          = [aws_subnet.private.id]  # ← both subnets
   security_group_ids  = [aws_security_group.vpc_endpoints_sg.id]
   private_dns_enabled = true
 
@@ -166,7 +173,7 @@ resource "aws_vpc_endpoint" "ec2messages" {
   vpc_id              = aws_vpc.main.id
   service_name        = "com.amazonaws.${var.aws_region}.ec2messages"
   vpc_endpoint_type   = "Interface"
-  subnet_ids          = [aws_subnet.private.id]
+  subnet_ids          = [aws_subnet.private.id]  # ← both subnets
   security_group_ids  = [aws_security_group.vpc_endpoints_sg.id]
   private_dns_enabled = true
 
@@ -180,7 +187,7 @@ resource "aws_vpc_endpoint" "ec2" {
   vpc_id              = aws_vpc.main.id
   service_name        = "com.amazonaws.${var.aws_region}.ec2"
   vpc_endpoint_type   = "Interface"
-  subnet_ids          = [aws_subnet.private.id]
+  subnet_ids          = [aws_subnet.private.id]  # ← both subnets
   security_group_ids  = [aws_security_group.vpc_endpoints_sg.id]
   private_dns_enabled = true
 
@@ -194,9 +201,7 @@ resource "aws_vpc_endpoint" "s3_gateway" {
   vpc_id            = aws_vpc.main.id
   service_name      = "com.amazonaws.${var.aws_region}.s3"
   vpc_endpoint_type = "Gateway"
-  route_table_ids   = [aws_route_table.private.id]
-
-  
+  route_table_ids   = [aws_route_table.private.id]   # gateway endpoint — no subnet needed
 
   tags = {
     Name        = "endpoint-s3-gateway"
@@ -204,12 +209,11 @@ resource "aws_vpc_endpoint" "s3_gateway" {
   }
 }
 
-
 resource "aws_vpc_endpoint" "inspector2" {
   vpc_id              = aws_vpc.main.id
   service_name        = "com.amazonaws.${var.aws_region}.inspector2"
   vpc_endpoint_type   = "Interface"
-  subnet_ids          = [aws_subnet.private.id]
+  subnet_ids          = [aws_subnet.private.id]  # ← both subnets
   security_group_ids  = [aws_security_group.vpc_endpoints_sg.id]
   private_dns_enabled = true
 
@@ -217,35 +221,6 @@ resource "aws_vpc_endpoint" "inspector2" {
     Name        = "endpoint-inspector2"
     Environment = "Production"
   }
-}
-
-# ============================================================
-# NAT GATEWAY — Windows instances patch via Microsoft Update
-# No WSUS server needed
-# ============================================================
-
-resource "aws_eip" "nat" {
-  domain = "vpc"
-  tags = {
-    Name        = "nat-gateway-eip"
-    Environment = "Production"
-  }
-}
-
-resource "aws_nat_gateway" "main" {
-  allocation_id = aws_eip.nat.id
-  subnet_id     = aws_subnet.public.id
-  tags = {
-    Name        = "main-nat-gateway"
-    Environment = "Production"
-  }
-  depends_on = [aws_internet_gateway.main]
-}
-
-resource "aws_route" "private_nat" {
-  route_table_id         = aws_route_table.private.id
-  destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = aws_nat_gateway.main.id
 }
 
 # ============================================================
@@ -262,9 +237,4 @@ output "private_subnet_id" {
 
 output "public_subnet_id" {
   value = aws_subnet.public.id
-}
-
-output "nat_gateway_ip" {
-  description = "NAT Gateway public IP - Windows Update traffic goes through here"
-  value       = aws_eip.nat.public_ip
 }

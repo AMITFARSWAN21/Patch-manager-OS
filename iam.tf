@@ -40,7 +40,7 @@ resource "aws_iam_role_policy" "ec2_s3_al2023_repos" {
         Resource = [
           # Amazon Linux 2023 repositories
           "arn:aws:s3:::al2023-repos-${var.aws_region}-*/*",
-          
+
           # Amazon Linux 2 repositories
           "arn:aws:s3:::amazonlinux-2-repos-${var.aws_region}/*",
           "arn:aws:s3:::amazonlinux.${var.aws_region}.amazonaws.com/*"
